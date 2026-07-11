@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>多 Agent 自动化办公工作流平台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="topbar">
+        <div class="brand">
+          <span class="brand-mark">AI</span>
+          <div>
+            <strong>Office Workflow Console</strong>
+            <small>LangGraph 多 Agent 办公自动化</small>
+          </div>
+        </div>
+        <div class="topbar-meta">
+          <span>FastAPI</span>
+          <span>LangGraph</span>
+          <span>SQLite</span>
+        </div>
+      </nav>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Agent Workflow Demo</p>
+          <h1>多 Agent 自动化办公工作流平台</h1>
+          <p class="subtitle">
+            上传销售数据，系统由 Planner、Data Analyst、Writer、Reviewer 协作完成分析、报告和审核。
+          </p>
+        </div>
+        <div class="status-card">
+          <span class="dot"></span>
+          <div>
+            <strong id="taskStatus">未创建任务</strong>
+            <p id="taskIdText">等待上传销售文件</p>
+            <p id="providerText">正在读取模型状态</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="metrics-grid" aria-label="任务概览">
+        <article class="metric-card">
+          <span>任务总数</span>
+          <strong id="metricTotal">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>已完成</span>
+          <strong id="metricCompleted">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>等待确认</span>
+          <strong id="metricWaiting">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>可下载报告</span>
+          <strong id="metricReports">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <form id="taskForm" class="panel">
+          <div class="panel-title">
+            <span>1</span>
+            <h2>创建办公任务</h2>
+          </div>
+          <label>
+            分析目标
+            <textarea id="objective" name="objective" rows="5">分析销售数据，找出重点区域、热销品类和经营建议，生成一份经营报告。</textarea>
+          </label>
+          <label>
+            销售数据文件
+            <input id="file" name="file" type="file" accept=".csv,.xlsx" />
+          </label>
+          <button type="submit">创建任务并生成计划</button>
+          <p class="hint">示例文件：sample-data/sales_orders.csv</p>
+        </form>
+
+        <section class="panel">
+          <div class="panel-title">
+            <span>2</span>
+            <h2>执行计划</h2>
+          </div>
+          <div id="planList" class="empty">任务创建后，Planner Agent 会在这里生成计划。</div>
+          <button id="confirmButton" type="button" disabled>确认计划并继续执行</button>
+          <div id="retryBox" class="retry-box hidden">
+            <label>
+              替换为修复后的销售文件（可选）
+              <input id="retryFile" type="file" accept=".csv,.xlsx" />
+            </label>
+            <button id="retryButton" type="button">重新执行失败任务</button>
+            <p class="hint">如果不选择文件，系统会使用原文件再次执行。</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel graph-panel">
+        <div class="panel-title">
+          <span>G</span>
+          <h2>LangGraph 工作流图</h2>
+        </div>
+        <div id="graphBox" class="graph-box">正在读取工作流图...</div>
+      </section>
+
+      <section class="panel history-panel">
+        <div class="panel-title history-title">
+          <div class="title-left">
+            <span>H</span>
+            <h2>任务历史</h2>
+          </div>
+          <div class="history-actions">
+            <select id="historyFilter" aria-label="筛选任务状态">
+              <option value="all">全部</option>
+              <option value="waiting_human_confirm">等待确认</option>
+              <option value="completed">已完成</option>
+              <option value="failed">失败</option>
+            </select>
+            <button id="refreshHistoryButton" class="secondary-button" type="button">刷新</button>
+          </div>
+        </div>
+        <div id="historyList" class="history-list empty">暂无历史任务。</div>
+      </section>
+
+      <section class="grid">
+        <section class="panel">
+          <div class="panel-title">
+            <span>3</span>
+            <h2>Agent Trace</h2>
+          </div>
+          <div id="traceList" class="trace empty">暂无执行记录。</div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title report-title">
+            <div class="title-left">
+              <span>4</span>
+              <h2>Markdown 报告</h2>
+            </div>
+            <div class="download-actions">
+              <button id="downloadMarkdownButton" class="secondary-button" type="button" disabled>下载 MD</button>
+              <button id="downloadPdfButton" class="secondary-button" type="button" disabled>下载 PDF</button>
+            </div>
+          </div>
+          <pre id="reportBox" class="report">任务完成后，报告会显示在这里。</pre>
+        </section>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

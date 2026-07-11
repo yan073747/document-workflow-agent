@@ -1,0 +1,4 @@
+order_id,date,region,salesperson,product,category,quantity,unit_price,customer_type
+BAD-1001,2026-06-01,华东,张敏,智能台灯,家居电器,12,129,企业客户
+BAD-1002,2026-06-01,华南,李晨,便携榨汁机,厨房电器,8,199,个人客户
+BAD-1003,2026-06-02,华北,王磊,人体工学椅,办公家具,3,899,企业客户
