@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 TaskStatus = Literal[
     "created",
     "planning",
+    "queued",
     "waiting_human_confirm",
     "analyzing",
     "writing_report",
@@ -53,12 +54,17 @@ class SalesAnalysis(BaseModel):
     average_order_value: float
     top_regions: list[SalesMetricItem]
     top_categories: list[SalesMetricItem]
+    monthly_trend: list[SalesMetricItem] = Field(default_factory=list)
+    region_ranking: list[SalesMetricItem] = Field(default_factory=list)
+    category_ranking: list[SalesMetricItem] = Field(default_factory=list)
+    salesperson_ranking: list[SalesMetricItem] = Field(default_factory=list)
     customer_mix: dict[str, float]
     insights: list[str]
 
 
 class TaskRecord(BaseModel):
     id: str
+    owner_id: str = ""
     objective: str
     file_path: str
     status: TaskStatus
@@ -71,6 +77,7 @@ class TaskRecord(BaseModel):
 
 class TaskSummary(BaseModel):
     id: str
+    owner_id: str = ""
     objective: str
     status: TaskStatus
     has_report: bool
@@ -93,3 +100,31 @@ class ConfirmTaskResponse(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
     context: dict[str, Any] = Field(default_factory=dict)
+
+
+class UserRecord(BaseModel):
+    id: str
+    email: str
+    password_hash: str
+    created_at: datetime
+
+
+class UserPublic(BaseModel):
+    id: str
+    email: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserPublic

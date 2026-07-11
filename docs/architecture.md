@@ -5,8 +5,13 @@
 ```mermaid
 flowchart LR
   U["用户"] --> FE["前端工作台"]
+  FE2["Next.js 控制台"] --> API
+  U --> FE2
   FE --> API["FastAPI API"]
   API --> DB["SQLite"]
+  API --> Q["Celery/Redis 队列（可选）"]
+  Q --> WK["Celery Worker"]
+  WK --> WF
   API --> WF["LangGraph Workflow Service"]
   WF --> LLM["LLM Provider Adapter"]
   WF --> P["Planner Agent"]
@@ -32,7 +37,10 @@ flowchart LR
 | `services/report_renderer.py` | Markdown 报告生成 |
 | `services/pdf_renderer.py` | Markdown 转 PDF 导出 |
 | `services/llm_provider.py` | DeepSeek / OpenAI 兼容模型适配 |
-| `core/config.py` | LLM 环境变量配置 |
+| `services/auth.py` | 密码哈希、JWT 签发和校验 |
+| `services/task_runner.py` | Celery 队列投递和 inline 回退 |
+| `worker.py` | Celery worker 入口 |
+| `core/config.py` | LLM、认证、Worker 环境变量配置 |
 
 ## 数据流
 
@@ -50,7 +58,8 @@ sequenceDiagram
   Workflow->>Repo: 写入计划和 Trace
   API-->>User: 返回等待确认状态
   User->>API: 确认计划
-  API->>Workflow: 继续执行任务
+  API->>Workflow: inline 继续执行任务
+  API->>Repo: 或写入 queued 并投递 Celery
   Workflow->>Tool: 分析销售数据
   Tool-->>Workflow: 返回统计结果
   Workflow->>Repo: 保存报告和 Trace
@@ -84,8 +93,33 @@ START -> data_analysis -> report_writer -> reviewer -> END
 - 每个节点都写入 Trace，便于定位失败位置。
 - 节点记录 `retry_count`，后续可扩展自动重试。
 - 人工确认节点将自动执行拆成两段，避免错误计划直接执行。
+- 任务归属到用户，所有任务详情、Trace、重试和报告下载都校验 owner。
+- Celery/Redis 关闭时使用 inline fallback，保证没有 Redis 也能跑完整流程。
 - 数据分析工具先校验字段，字段缺失时给出明确错误。
 - 报告生成后支持 Markdown 和 PDF 两种下载格式，便于真实办公交付。
+
+## 登录和权限
+
+系统内置 demo 账号：
+
+```text
+demo@example.com / demo123456
+```
+
+登录后后端签发 Bearer Token。任务创建时写入 `owner_id`，任务列表、任务详情、Trace、重试和报告下载都会校验当前用户，只能访问自己的任务。
+
+## 异步执行
+
+默认配置下 `ENABLE_CELERY=false`，确认计划后 FastAPI 直接 inline 执行 LangGraph workflow，方便本地演示。
+
+当配置：
+
+```env
+ENABLE_CELERY=true
+REDIS_URL=redis://localhost:6379/0
+```
+
+确认计划接口会把任务状态改为 `queued` 并投递到 Celery worker。worker 使用同一个 SQLite repository 和 `OfficeWorkflow` 执行任务，前端通过轮询任务详情获取状态和 Trace。
 
 ## 报告导出
 

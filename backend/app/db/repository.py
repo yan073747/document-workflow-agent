@@ -6,7 +6,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterable
 
-from app.core.models import PlanStep, SalesAnalysis, TaskRecord, TaskStatus, TaskSummary, TraceEvent
+from app.core.config import AuthSettings
+from app.core.models import PlanStep, SalesAnalysis, TaskRecord, TaskStatus, TaskSummary, TraceEvent, UserRecord
+from app.services.auth import hash_password, new_user_id, normalize_email
 
 
 def utc_now_text() -> str:
@@ -28,6 +30,16 @@ class WorkflowRepository:
         with self.connect() as connection:
             connection.execute(
                 """
+                CREATE TABLE IF NOT EXISTS users (
+                  id TEXT PRIMARY KEY,
+                  email TEXT NOT NULL UNIQUE,
+                  password_hash TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
                 CREATE TABLE IF NOT EXISTS tasks (
                   id TEXT PRIMARY KEY,
                   objective TEXT NOT NULL,
@@ -41,6 +53,11 @@ class WorkflowRepository:
                 )
                 """
             )
+            task_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(tasks)").fetchall()
+            }
+            if "owner_id" not in task_columns:
+                connection.execute("ALTER TABLE tasks ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS trace_events (
@@ -58,17 +75,60 @@ class WorkflowRepository:
                 )
                 """
             )
+        demo_user = self.ensure_demo_user()
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE tasks SET owner_id = ? WHERE owner_id = ''",
+                (demo_user.id,),
+            )
 
-    def create_task(self, task_id: str, objective: str, file_path: str) -> TaskRecord:
+    def ensure_demo_user(self) -> UserRecord:
+        settings = AuthSettings.from_env()
+        existing = self.get_user_by_email(settings.demo_email)
+        if existing:
+            return existing
+        return self.create_user(settings.demo_email, settings.demo_password)
+
+    def create_user(self, email: str, password: str) -> UserRecord:
         now = utc_now_text()
+        user_id = new_user_id()
+        normalized_email = normalize_email(email)
+        with self.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO users (id, email, password_hash, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (user_id, normalized_email, hash_password(password), now),
+            )
+        return self.get_user(user_id)
+
+    def get_user(self, user_id: str) -> UserRecord:
+        with self.connect() as connection:
+            row = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if row is None:
+            raise KeyError(f"User not found: {user_id}")
+        return self._row_to_user(row)
+
+    def get_user_by_email(self, email: str) -> UserRecord | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM users WHERE email = ?",
+                (normalize_email(email),),
+            ).fetchone()
+        return self._row_to_user(row) if row else None
+
+    def create_task(self, task_id: str, objective: str, file_path: str, owner_id: str | None = None) -> TaskRecord:
+        now = utc_now_text()
+        task_owner_id = owner_id or self.ensure_demo_user().id
         with self.connect() as connection:
             connection.execute(
                 """
                 INSERT INTO tasks (
-                  id, objective, file_path, status, plan_json, report_markdown, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  id, owner_id, objective, file_path, status, plan_json, report_markdown, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (task_id, objective, file_path, "created", "[]", "", now, now),
+                (task_id, task_owner_id, objective, file_path, "created", "[]", "", now, now),
             )
         return self.get_task(task_id)
 
@@ -148,6 +208,23 @@ class WorkflowRepository:
             ).fetchall()
         return [self._row_to_summary(row) for row in rows]
 
+    def list_task_summaries_for_user(self, owner_id: str) -> list[TaskSummary]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                  tasks.*,
+                  COUNT(trace_events.id) AS trace_count
+                FROM tasks
+                LEFT JOIN trace_events ON trace_events.task_id = tasks.id
+                WHERE tasks.owner_id = ?
+                GROUP BY tasks.id
+                ORDER BY tasks.created_at DESC
+                """,
+                (owner_id,),
+            ).fetchall()
+        return [self._row_to_summary(row) for row in rows]
+
     def add_trace(self, event: TraceEvent) -> TraceEvent:
         created_at = event.created_at.isoformat(timespec="seconds") if event.created_at else utc_now_text()
         with self.connect() as connection:
@@ -186,6 +263,7 @@ class WorkflowRepository:
         analysis_data = json.loads(row["analysis_json"]) if row["analysis_json"] else None
         return TaskRecord(
             id=row["id"],
+            owner_id=row["owner_id"],
             objective=row["objective"],
             file_path=row["file_path"],
             status=row["status"],
@@ -200,6 +278,7 @@ class WorkflowRepository:
         plan_data = json.loads(row["plan_json"] or "[]")
         return TaskSummary(
             id=row["id"],
+            owner_id=row["owner_id"],
             objective=row["objective"],
             status=row["status"],
             has_report=bool(row["report_markdown"]),
@@ -220,5 +299,13 @@ class WorkflowRepository:
             output_summary=row["output_summary"],
             error_message=row["error_message"],
             retry_count=row["retry_count"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    def _row_to_user(self, row: sqlite3.Row) -> UserRecord:
+        return UserRecord(
+            id=row["id"],
+            email=row["email"],
+            password_hash=row["password_hash"],
             created_at=datetime.fromisoformat(row["created_at"]),
         )

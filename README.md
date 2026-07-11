@@ -31,6 +31,9 @@
 - 失败重试：节点失败后记录 retry 次数，后续扩展自动重试策略。
 - 报告输出：支持 Markdown 和 PDF 下载。
 - 任务历史：支持历史任务列表、状态筛选和详情复盘。
+- 登录权限：内置 demo 账号，任务按用户隔离。
+- 图表分析：支持月度趋势、区域排行、品类排行、销售员排行和客户结构。
+- 异步执行：支持 Celery/Redis 队列执行，默认保留本地 inline 回退。
 - 失败恢复：支持错误数据触发失败 Trace，并可上传修复后的文件重试。
 - 无 Key 稳定演示：使用本地规则跑通完整流程，也可以接入远程 LLM。
 
@@ -42,9 +45,11 @@
 | Agent 编排 | LangGraph StateGraph |
 | 数据处理 | Python 标准库 CSV + openpyxl |
 | 数据库 | SQLite |
+| 登录权限 | JWT + SQLite 用户表 + PBKDF2 密码哈希 |
+| 异步任务 | Celery + Redis，可关闭并回退 inline 执行 |
 | LLM 接入 | DeepSeek / OpenAI 兼容 Chat Completions，本地规则回退 |
 | 报告 | Markdown + PDF 导出 |
-| 前端 | HTML + CSS + JavaScript 起步，后续可升级 React/Next.js |
+| 前端 | Next.js + React + TypeScript + Recharts |
 | 测试 | pytest + FastAPI TestClient |
 
 ## 第一版业务流程
@@ -86,8 +91,15 @@ document-workflow-agent/
     index.html
     styles.css
     app.js
+  frontend-next/
+    src/
+      app/
+      components/
+      lib/
+    package.json
   sample-data/
     sales_orders.csv
+    sales_orders.xlsx
   docs/
     architecture.md
     day1_design.md
@@ -125,6 +137,48 @@ API 文档：
 ```text
 http://127.0.0.1:8020/docs
 ```
+
+启动 Next.js 前端：
+
+```powershell
+cd C:\Users\43448\Documents\入职准备\document-workflow-agent\frontend-next
+npm install --registry=https://registry.npmmirror.com
+npm run dev
+```
+
+前端地址：
+
+```text
+http://127.0.0.1:3000
+```
+
+默认演示账号：
+
+```text
+demo@example.com / demo123456
+```
+
+旧版静态前端仍保留在 `frontend/`，后端也仍可访问 `/app`。
+
+## Celery/Redis 可选异步执行
+
+默认不需要 Redis，用户确认计划后会在 FastAPI 进程内 inline 执行，便于本地快速演示。
+
+启用异步队列：
+
+```env
+ENABLE_CELERY=true
+REDIS_URL=redis://localhost:6379/0
+```
+
+启动 worker：
+
+```powershell
+cd C:\Users\43448\Documents\入职准备\document-workflow-agent\backend
+celery -A app.worker.celery_app worker --loglevel=info
+```
+
+启用 Celery 后，确认计划接口会把任务置为 `queued` 并投递给 worker，Next.js 前端会轮询任务详情和 Trace，直到任务完成或失败。
 
 ## LLM 配置
 
@@ -174,14 +228,29 @@ GET /api/llm/status
 
 ## 推荐演示流程
 
-1. 打开前端页面。
-2. 使用 `sample-data/sales_orders.csv` 作为上传文件。
-3. 输入任务目标：`分析销售数据，找出重点区域、热销品类和经营建议，生成一份经营报告。`
-4. 创建任务后查看 Planner 生成的执行计划。
-5. 点击确认计划，让工作流继续执行。
-6. 观察 Agent Trace：每个节点的状态、工具调用和输出摘要。
-7. 查看最终 Markdown 报告。
-8. 下载 Markdown 或 PDF 报告，展示系统可以交付办公成果文件。
+1. 启动后端和 Next.js 前端。
+2. 使用 demo 账号登录。
+3. 使用 `sample-data/sales_orders.xlsx` 或 `sample-data/sales_orders.csv` 作为上传文件。
+4. 输入任务目标：`分析销售数据，找出重点区域、热销品类和经营建议，生成一份经营报告。`
+5. 创建任务后查看 Planner 生成的执行计划。
+6. 点击确认计划，让工作流继续执行。
+7. 查看销售趋势、排行图表和 Agent Trace。
+8. 查看最终 Markdown 报告。
+9. 下载 Markdown 或 PDF 报告，展示系统可以交付办公成果文件。
+
+## 登录和权限接口
+
+```text
+POST /api/auth/login
+POST /api/auth/register
+GET /api/auth/me
+```
+
+任务接口需要携带：
+
+```text
+Authorization: Bearer <access_token>
+```
 
 ## 报告下载接口
 
@@ -235,6 +304,7 @@ GET /api/tasks/{task_id}/trace
 说明：
 
 - `GET /api/tasks` 返回任务摘要列表，包括状态、是否有报告、计划步骤数和 Trace 数量。
+- 任务列表只返回当前登录用户自己的任务。
 - 前端支持按状态筛选：全部、等待确认、已完成、失败。
 - 点击历史任务后，会恢复该任务的执行计划、Agent Trace、Markdown 报告和下载按钮。
 
@@ -268,7 +338,7 @@ POST /api/tasks/{task_id}/retry
 - 设计并实现面向办公自动化场景的 Agent Workflow 系统，支持销售 Excel 上传、任务拆解、多 Agent 协作、工具调用、人工确认和报告生成。
 - 使用 FastAPI 构建任务 API，使用 SQLite 保存任务状态、执行步骤和 Trace 日志，前端可展示完整执行链路。
 - 将工作流拆分为 Planner、Data Analyst、Writer、Reviewer 等角色，模拟企业数字员工协作完成数据分析和经营报告生成。
-- 设计失败重试、人工确认和无 Key 本地规则回退机制，保证项目在技术演示和本地调试中稳定运行。
+- 设计登录权限、失败重试、人工确认、Celery/Redis 异步队列和无 Key 本地规则回退机制，保证项目在技术演示和本地调试中稳定运行。
 
 ## 当前进度
 
@@ -279,9 +349,9 @@ POST /api/tasks/{task_id}/retry
 - 第 5 天：增加任务历史列表、状态筛选和任务详情复盘。
 - 第 6 天：优化前端控制台视觉，增加任务指标卡，并补充功能截图清单。
 - 第 7 天：增加失败任务样例、错误 Trace 和失败任务重试接口。
+- 第 8 天：升级 Next.js 前端，增加 Excel 图表分析、demo 登录、任务权限和 Celery/Redis 可选异步执行。
 
 ## 后续计划
 
 - 增加任务节点级别的失败重试配置。
-- 增加截图、架构图和完整技术讲解稿。
-- 补充项目说明和技术讲解稿。
+- 补充新版 Next.js 截图和完整技术讲解稿。

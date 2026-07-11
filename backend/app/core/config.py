@@ -68,3 +68,33 @@ class LLMSettings:
             "enabled": self.is_enabled,
             "fallback_reason": reason,
         }
+
+
+@dataclass(frozen=True)
+class AuthSettings:
+    jwt_secret: str = "local-dev-secret-change-me"
+    token_expire_minutes: int = 60 * 24
+    demo_email: str = "demo@example.com"
+    demo_password: str = "demo123456"
+
+    @classmethod
+    def from_env(cls) -> "AuthSettings":
+        return cls(
+            jwt_secret=os.getenv("JWT_SECRET", "local-dev-secret-change-me"),
+            token_expire_minutes=int(os.getenv("TOKEN_EXPIRE_MINUTES", str(60 * 24))),
+            demo_email=os.getenv("DEMO_USER_EMAIL", "demo@example.com").strip().lower(),
+            demo_password=os.getenv("DEMO_USER_PASSWORD", "demo123456"),
+        )
+
+
+@dataclass(frozen=True)
+class WorkerSettings:
+    enable_celery: bool = False
+    redis_url: str = "redis://localhost:6379/0"
+
+    @classmethod
+    def from_env(cls) -> "WorkerSettings":
+        return cls(
+            enable_celery=os.getenv("ENABLE_CELERY", "false").strip().lower() in {"1", "true", "yes", "on"},
+            redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0").strip(),
+        )

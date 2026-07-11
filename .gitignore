@@ -5,3 +5,7 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
+.next/
+*.tsbuildinfo
+.worktrees
+.worktrees/

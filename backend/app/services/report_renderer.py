@@ -10,6 +10,12 @@ def render_markdown_report(objective: str, analysis: SalesAnalysis) -> str:
     category_rows = "\n".join(
         f"| {item.name} | {item.revenue:.2f} | {item.quantity} |" for item in analysis.top_categories
     )
+    salesperson_rows = "\n".join(
+        f"| {item.name} | {item.revenue:.2f} | {item.quantity} |" for item in analysis.salesperson_ranking
+    )
+    trend_rows = "\n".join(
+        f"| {item.name} | {item.revenue:.2f} | {item.quantity} |" for item in analysis.monthly_trend
+    )
     customer_rows = "\n".join(
         f"| {name} | {ratio:.2f}% |" for name, ratio in analysis.customer_mix.items()
     )
@@ -30,6 +36,12 @@ def render_markdown_report(objective: str, analysis: SalesAnalysis) -> str:
 | 销售件数 | {analysis.total_quantity} |
 | 平均客单价 | {analysis.average_order_value:.2f} 元 |
 
+## 月度销售趋势
+
+| 月份 | 销售额 | 销售件数 |
+| --- | ---: | ---: |
+{trend_rows}
+
 ## 区域销售排行
 
 | 区域 | 销售额 | 销售件数 |
@@ -41,6 +53,12 @@ def render_markdown_report(objective: str, analysis: SalesAnalysis) -> str:
 | 品类 | 销售额 | 销售件数 |
 | --- | ---: | ---: |
 {category_rows}
+
+## 销售员业绩排行
+
+| 销售员 | 销售额 | 销售件数 |
+| --- | ---: | ---: |
+{salesperson_rows}
 
 ## 客户类型占比
 
@@ -65,7 +83,7 @@ def build_report_prompt(objective: str, analysis: SalesAnalysis) -> str:
     return f"""请根据下面的销售分析结果，生成一份中文 Markdown 经营分析报告。
 
 要求：
-1. 必须包含这些二级标题：任务目标、核心指标、区域销售排行、品类销售排行、客户类型占比、关键洞察、经营建议。
+1. 必须包含这些二级标题：任务目标、核心指标、月度销售趋势、区域销售排行、品类销售排行、销售员业绩排行、客户类型占比、关键洞察、经营建议。
 2. 报告要适合给业务负责人阅读，结论明确，不要写空泛套话。
 3. 保留关键数字，建议用 Markdown 表格展示核心指标。
 
