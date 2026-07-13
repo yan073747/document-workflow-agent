@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: docflow-api
+    env: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_PATH
+        value: /app/data/workflow.db
+      - key: UPLOAD_DIR
+        value: /app/data/uploads
+      - key: LLM_PROVIDER
+        value: local
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TOKEN_EXPIRE_MINUTES
+        value: "1440"
+      - key: DEMO_USER_EMAIL
+        value: demo@example.com
+      - key: DEMO_USER_PASSWORD
+        value: demo123456
+      - key: ENABLE_CELERY
+        value: "false"
