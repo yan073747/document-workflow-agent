@@ -34,7 +34,7 @@ export type ChartSalesAnalysis = {
   customer_mix: Record<string, number>;
 };
 
-const pieColors = ["#155eef", "#087443", "#b54708", "#6941c6", "#0e9384"];
+const pieColors = ["#2563eb", "#059669", "#d97706", "#7c3aed", "#0f766e"];
 
 export function AnalyticsCharts({ analysis }: { analysis: ChartSalesAnalysis | null }) {
   if (!analysis) {
@@ -44,7 +44,7 @@ export function AnalyticsCharts({ analysis }: { analysis: ChartSalesAnalysis | n
           <span>A</span>
           <h2>销售分析图表</h2>
         </div>
-        <div className="empty">任务完成后，这里会展示趋势、排行和客户结构图表。</div>
+        <div className="empty">确认执行后，这里会展示趋势、排行和客户结构。</div>
       </section>
     );
   }
@@ -62,10 +62,10 @@ export function AnalyticsCharts({ analysis }: { analysis: ChartSalesAnalysis | n
       </div>
 
       <div className="kpi-grid">
-        <Kpi label="销售额" value={`${formatNumber(analysis.total_revenue)} 元`} />
+        <Kpi label="销售额" value={`¥${formatNumber(analysis.total_revenue)}`} />
         <Kpi label="订单数" value={`${analysis.order_count}`} />
         <Kpi label="销售件数" value={`${analysis.total_quantity}`} />
-        <Kpi label="平均客单价" value={`${formatNumber(analysis.average_order_value)} 元`} />
+        <Kpi label="平均客单价" value={`¥${formatNumber(analysis.average_order_value)}`} />
       </div>
 
       <div className="chart-grid">
@@ -75,8 +75,8 @@ export function AnalyticsCharts({ analysis }: { analysis: ChartSalesAnalysis | n
               <CartesianGrid stroke="#e5eaf1" vertical={false} />
               <XAxis dataKey="name" tickLine={false} axisLine={false} />
               <YAxis tickLine={false} axisLine={false} width={72} />
-              <Tooltip formatter={(value) => `${formatNumber(Number(value))} 元`} />
-              <Line type="monotone" dataKey="revenue" name="销售额" stroke="#155eef" strokeWidth={3} dot />
+              <Tooltip formatter={(value) => `¥${formatNumber(Number(value))}`} />
+              <Line type="monotone" dataKey="revenue" name="销售额" stroke="#2563eb" strokeWidth={3} dot />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -87,8 +87,8 @@ export function AnalyticsCharts({ analysis }: { analysis: ChartSalesAnalysis | n
               <CartesianGrid stroke="#e5eaf1" vertical={false} />
               <XAxis dataKey="name" tickLine={false} axisLine={false} />
               <YAxis tickLine={false} axisLine={false} width={72} />
-              <Tooltip formatter={(value) => `${formatNumber(Number(value))} 元`} />
-              <Bar dataKey="revenue" name="销售额" fill="#155eef" radius={[4, 4, 0, 0]} />
+              <Tooltip formatter={(value) => `¥${formatNumber(Number(value))}`} />
+              <Bar dataKey="revenue" name="销售额" fill="#2563eb" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -99,8 +99,8 @@ export function AnalyticsCharts({ analysis }: { analysis: ChartSalesAnalysis | n
               <CartesianGrid stroke="#e5eaf1" vertical={false} />
               <XAxis dataKey="name" tickLine={false} axisLine={false} />
               <YAxis tickLine={false} axisLine={false} width={72} />
-              <Tooltip formatter={(value) => `${formatNumber(Number(value))} 元`} />
-              <Bar dataKey="revenue" name="销售额" fill="#087443" radius={[4, 4, 0, 0]} />
+              <Tooltip formatter={(value) => `¥${formatNumber(Number(value))}`} />
+              <Bar dataKey="revenue" name="销售额" fill="#059669" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -111,8 +111,8 @@ export function AnalyticsCharts({ analysis }: { analysis: ChartSalesAnalysis | n
               <CartesianGrid stroke="#e5eaf1" vertical={false} />
               <XAxis dataKey="name" tickLine={false} axisLine={false} />
               <YAxis tickLine={false} axisLine={false} width={72} />
-              <Tooltip formatter={(value) => `${formatNumber(Number(value))} 元`} />
-              <Bar dataKey="revenue" name="销售额" fill="#b54708" radius={[4, 4, 0, 0]} />
+              <Tooltip formatter={(value) => `¥${formatNumber(Number(value))}`} />
+              <Bar dataKey="revenue" name="销售额" fill="#d97706" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  BarChart3,
   Bot,
   CheckCircle2,
   Database,
@@ -10,7 +9,6 @@ import {
   FileSpreadsheet,
   Loader2,
   RefreshCw,
-  RotateCcw,
   ShieldCheck
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -117,7 +115,7 @@ type AuthTokenResponse = {
   user: AuthUser;
 };
 
-const defaultObjective = "分析销售数据，找出重点区域、热销品类和经营建议，生成一份经营报告。";
+const defaultObjective = "分析销售订单数据，识别重点区域、热销品类和经营风险，并生成一份管理层可读的经营报告。";
 
 const statusLabels: Record<TaskStatus, string> = {
   created: "已创建",
@@ -125,7 +123,7 @@ const statusLabels: Record<TaskStatus, string> = {
   queued: "队列中",
   waiting_human_confirm: "等待人工确认",
   analyzing: "分析中",
-  writing_report: "报告生成中",
+  writing_report: "生成报告中",
   reviewing: "审核中",
   completed: "已完成",
   failed: "失败"
@@ -136,14 +134,13 @@ export function Dashboard() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [objective, setObjective] = useState(defaultObjective);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [retryFile, setRetryFile] = useState<File | null>(null);
   const [currentTask, setCurrentTask] = useState<TaskRecord | null>(null);
   const [trace, setTrace] = useState<TraceEvent[]>([]);
   const [history, setHistory] = useState<TaskSummary[]>([]);
   const [historyFilter, setHistoryFilter] = useState<TaskStatus | "all">("all");
   const [graph, setGraph] = useState<WorkflowGraphPayload | null>(null);
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
-  const [busyText, setBusyText] = useState("未创建任务");
+  const [busyText, setBusyText] = useState("等待创建任务");
   const [errorText, setErrorText] = useState("");
   const [loginEmail, setLoginEmail] = useState("demo@example.com");
   const [loginPassword, setLoginPassword] = useState("demo123456");
@@ -155,18 +152,13 @@ export function Dashboard() {
     void apiGet<AuthUser>("/api/auth/me", { token: storedToken })
       .then((nextUser) => {
         setUser(nextUser);
-        return Promise.all([
-          loadWorkflowGraph(),
-          loadProviderStatus(),
-          loadTaskHistory(storedToken)
-        ]);
+        return Promise.all([loadWorkflowGraph(), loadProviderStatus(), loadTaskHistory(storedToken)]);
       })
       .catch(() => {
         window.localStorage.removeItem("workflow_token");
         setToken(null);
         setUser(null);
       });
-    // The initial auth restore should run once on mount; later loads are triggered by explicit user actions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -194,13 +186,13 @@ export function Dashboard() {
 
   async function loadTaskDetail(taskId: string) {
     if (!token) return;
-    setBusyText("正在加载历史任务...");
+    setBusyText("正在加载任务详情...");
     setErrorText("");
     try {
       const payload = await apiGet<TaskPayload>(`/api/tasks/${taskId}`, { token });
       renderPayload(payload);
     } catch (error) {
-      showError(error, "历史任务加载失败");
+      showError(error, "任务详情加载失败");
     }
   }
 
@@ -214,7 +206,7 @@ export function Dashboard() {
     event.preventDefault();
     if (!token) return;
     if (!selectedFile) {
-      setErrorText("请先选择销售 CSV 或 Excel 文件。");
+      setErrorText("请先选择一份 CSV 或 Excel 文件。");
       return;
     }
 
@@ -222,7 +214,7 @@ export function Dashboard() {
     form.append("objective", objective.trim());
     form.append("file", selectedFile);
 
-    setBusyText("正在创建任务...");
+    setBusyText("Planner Agent 正在生成执行计划...");
     setErrorText("");
     try {
       const payload = await apiPostForm<TaskPayload>("/api/tasks", form, { token });
@@ -235,34 +227,14 @@ export function Dashboard() {
 
   async function handleConfirmTask() {
     if (!currentTask || !token) return;
-    setBusyText("Agent 正在执行...");
+    setBusyText("Agent 团队正在分析数据...");
     setErrorText("");
     try {
       const payload = await apiPost<TaskPayload>(`/api/tasks/${currentTask.id}/confirm`, { token });
       renderPayload(payload);
       await loadTaskHistory();
-      if (payload.task.status === "queued") {
-        void pollTaskUntilTerminal(payload.task.id);
-      }
     } catch (error) {
       showError(error, "执行失败");
-    }
-  }
-
-  async function handleRetryTask() {
-    if (!currentTask || !token) return;
-    const form = new FormData();
-    if (retryFile) form.append("file", retryFile);
-
-    setBusyText("正在重新规划失败任务...");
-    setErrorText("");
-    try {
-      const payload = await apiPostForm<TaskPayload>(`/api/tasks/${currentTask.id}/retry`, form, { token });
-      setRetryFile(null);
-      renderPayload(payload);
-      await loadTaskHistory();
-    } catch (error) {
-      showError(error, "重试启动失败");
     }
   }
 
@@ -274,7 +246,7 @@ export function Dashboard() {
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorText("");
-    setBusyText("正在登录...");
+    setBusyText("正在登录演示账号...");
     try {
       const payload = await apiPostJson<AuthTokenResponse>("/api/auth/login", {
         email: loginEmail,
@@ -283,12 +255,8 @@ export function Dashboard() {
       window.localStorage.setItem("workflow_token", payload.access_token);
       setToken(payload.access_token);
       setUser(payload.user);
-      await Promise.all([
-        loadWorkflowGraph(),
-        loadProviderStatus(),
-        loadTaskHistory(payload.access_token)
-      ]);
-      setBusyText("未创建任务");
+      await Promise.all([loadWorkflowGraph(), loadProviderStatus(), loadTaskHistory(payload.access_token)]);
+      setBusyText("等待创建任务");
     } catch (error) {
       showError(error, "登录失败");
     }
@@ -301,7 +269,7 @@ export function Dashboard() {
     setCurrentTask(null);
     setTrace([]);
     setHistory([]);
-    setBusyText("未创建任务");
+    setBusyText("等待创建任务");
   }
 
   async function handleDownload(format: "md" | "pdf") {
@@ -310,19 +278,6 @@ export function Dashboard() {
       await downloadReportFile(currentTask.id, format, token);
     } catch (error) {
       showError(error, "报告下载失败");
-    }
-  }
-
-  async function pollTaskUntilTerminal(taskId: string) {
-    if (!token) return;
-    for (let index = 0; index < 40; index += 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, 1500));
-      const payload = await apiGet<TaskPayload>(`/api/tasks/${taskId}`, { token });
-      renderPayload(payload);
-      await loadTaskHistory();
-      if (["completed", "failed", "waiting_human_confirm"].includes(payload.task.status)) {
-        break;
-      }
     }
   }
 
@@ -340,41 +295,40 @@ export function Dashboard() {
   }, [history]);
 
   const providerMode = provider
-    ? `${provider.enabled ? "远程 LLM" : "本地规则回退"}：${provider.provider} / ${provider.model}`
+    ? `${provider.enabled ? "规则引擎演示模式" : "本地演示模式"} · ${provider.provider} / ${provider.model}`
     : "模型状态读取失败";
 
   return (
     <main className="shell">
       <nav className="topbar">
         <div className="brand">
-          <span className="brand-mark">AI</span>
+          <span className="brand-mark">DW</span>
           <div>
-            <strong>Office Workflow Console</strong>
-            <small>LangGraph 多 Agent 办公自动化</small>
+            <strong>Document Workflow Agent</strong>
+            <small>Vercel serverless demo</small>
           </div>
         </div>
         <div className="topbar-meta">
           {user ? <span>{user.email}</span> : null}
           <span>Next.js</span>
-          <span>FastAPI</span>
-          <span>LangGraph</span>
-          <span>SQLite</span>
+          <span>Serverless API</span>
+          <span>Agent Workflow</span>
         </div>
       </nav>
 
       <section className="hero">
         <div>
-          <p className="eyebrow">Agent Workflow Demo</p>
-          <h1>多 Agent 自动化办公工作流平台</h1>
+          <p className="eyebrow">Agent Demo 01</p>
+          <h1>文档工作流 Agent 控制台</h1>
           <p className="subtitle">
-            上传销售数据，系统由 Planner、Data Analyst、Writer、Reviewer 协作完成分析、报告和审核。
+            上传销售表格，系统模拟 Planner、Data Analyst、Writer、Reviewer 协作完成计划生成、人工确认、数据分析和报告输出。
           </p>
         </div>
         <div className="status-card">
           {busyText.includes("正在") ? <Loader2 className="spin" size={18} /> : <Activity size={18} />}
           <div>
             <strong>{busyText}</strong>
-            <p>{currentTask ? `任务 ID：${currentTask.id}` : "等待上传销售文件"}</p>
+            <p>{currentTask ? `任务 ID：${currentTask.id}` : "等待上传演示文件"}</p>
             <p>{providerMode}</p>
           </div>
         </div>
@@ -403,7 +357,7 @@ export function Dashboard() {
             </label>
             <button type="submit">
               <ShieldCheck size={18} />
-              登录控制台
+              进入控制台
             </button>
             <p className="hint">默认账号：demo@example.com / demo123456</p>
           </form>
@@ -417,143 +371,126 @@ export function Dashboard() {
             </button>
           </div>
 
-      <section className="metrics-grid" aria-label="任务概览">
-        <MetricCard label="任务总数" value={metrics.total} icon={<Database size={18} />} />
-        <MetricCard label="已完成" value={metrics.completed} icon={<CheckCircle2 size={18} />} />
-        <MetricCard label="等待确认" value={metrics.waiting} icon={<ShieldCheck size={18} />} />
-        <MetricCard label="可下载报告" value={metrics.reports} icon={<Download size={18} />} />
-      </section>
+          <section className="metrics-grid" aria-label="任务概览">
+            <MetricCard label="任务总数" value={metrics.total} icon={<Database size={18} />} />
+            <MetricCard label="已完成" value={metrics.completed} icon={<CheckCircle2 size={18} />} />
+            <MetricCard label="待确认" value={metrics.waiting} icon={<ShieldCheck size={18} />} />
+            <MetricCard label="可下载报告" value={metrics.reports} icon={<Download size={18} />} />
+          </section>
 
-      <section className="workspace">
-        <form className="panel" onSubmit={handleCreateTask}>
-          <PanelTitle marker="1" title="创建办公任务" />
-          <label>
-            分析目标
-            <textarea value={objective} rows={5} onChange={(event) => setObjective(event.target.value)} />
-          </label>
-          <label>
-            销售数据文件
-            <input
-              type="file"
-              accept=".csv,.xlsx"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
-            />
-          </label>
-          <button type="submit">
-            <FileSpreadsheet size={18} />
-            创建任务并生成计划
-          </button>
-          <p className="hint">示例文件：sample-data/sales_orders.csv</p>
-        </form>
-
-        <section className="panel">
-          <PanelTitle marker="2" title="执行计划" />
-          <PlanList plan={currentTask?.plan || []} />
-          <button
-            type="button"
-            disabled={currentTask?.status !== "waiting_human_confirm"}
-            onClick={handleConfirmTask}
-          >
-            <Bot size={18} />
-            确认计划并继续执行
-          </button>
-          {currentTask?.status === "failed" ? (
-            <div className="retry-box">
+          <section className="workspace">
+            <form className="panel" onSubmit={handleCreateTask}>
+              <PanelTitle marker="1" title="创建分析任务" />
               <label>
-                替换为修复后的销售文件（可选）
+                分析目标
+                <textarea value={objective} rows={5} onChange={(event) => setObjective(event.target.value)} />
+              </label>
+              <label>
+                销售数据文件
                 <input
                   type="file"
                   accept=".csv,.xlsx"
-                  onChange={(event) => setRetryFile(event.target.files?.[0] || null)}
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
                 />
               </label>
-              <button type="button" onClick={handleRetryTask}>
-                <RotateCcw size={18} />
-                重新执行失败任务
+              <button type="submit">
+                <FileSpreadsheet size={18} />
+                上传并生成执行计划
               </button>
-              <p className="hint">如果不选择文件，系统会使用原文件再次执行。</p>
-            </div>
-          ) : null}
-        </section>
-      </section>
+              <p className="hint">可使用仓库里的 sample-data/sales_orders.xlsx；线上演示会使用安全样例数据。</p>
+            </form>
 
-      <section className="panel graph-panel">
-        <PanelTitle marker="G" title="LangGraph 工作流图" />
-        <WorkflowGraph graph={graph} />
-      </section>
-
-      <section className="panel history-panel">
-        <div className="panel-title split-title">
-          <div className="title-left">
-            <span>H</span>
-            <h2>任务历史</h2>
-          </div>
-          <div className="history-actions">
-            <select
-              aria-label="筛选任务状态"
-              value={historyFilter}
-              onChange={(event) => setHistoryFilter(event.target.value as TaskStatus | "all")}
-            >
-              <option value="all">全部</option>
-              <option value="waiting_human_confirm">等待确认</option>
-              <option value="completed">已完成</option>
-              <option value="failed">失败</option>
-            </select>
-            <button className="secondary-button" type="button" onClick={() => void loadTaskHistory()}>
-              <RefreshCw size={16} />
-              刷新
-            </button>
-          </div>
-        </div>
-        <HistoryList
-          tasks={filteredHistory}
-          activeTaskId={currentTask?.id}
-          onSelectTask={(taskId) => void loadTaskDetail(taskId)}
-        />
-      </section>
-
-      <AnalyticsCharts analysis={currentTask?.analysis || null} />
-
-      <section className="grid">
-        <section className="panel">
-          <PanelTitle marker="3" title="Agent Trace" />
-          <TraceList trace={trace} />
-        </section>
-
-        <section className="panel">
-          <div className="panel-title split-title">
-            <div className="title-left">
-              <span>4</span>
-              <h2>Markdown 报告</h2>
-            </div>
-            <div className="download-actions">
-              <a
-                className={`secondary-link ${currentTask?.report_markdown ? "" : "disabled"}`}
-                href="#"
-                onClick={(event) => {
-                  event.preventDefault();
-                  void handleDownload("md");
-                }}
+            <section className="panel">
+              <PanelTitle marker="2" title="执行计划" />
+              <PlanList plan={currentTask?.plan || []} />
+              <button
+                type="button"
+                disabled={currentTask?.status !== "waiting_human_confirm"}
+                onClick={handleConfirmTask}
               >
-                <Download size={16} />
-                MD
-              </a>
-              <a
-                className={`secondary-link ${currentTask?.report_markdown ? "" : "disabled"}`}
-                href="#"
-                onClick={(event) => {
-                  event.preventDefault();
-                  void handleDownload("pdf");
-                }}
-              >
-                <Download size={16} />
-                PDF
-              </a>
+                <Bot size={18} />
+                确认计划并继续执行
+              </button>
+            </section>
+          </section>
+
+          <section className="panel graph-panel">
+            <PanelTitle marker="G" title="Agent 工作流图" />
+            <WorkflowGraph graph={graph} />
+          </section>
+
+          <section className="panel history-panel">
+            <div className="panel-title split-title">
+              <div className="title-left">
+                <span>H</span>
+                <h2>任务历史</h2>
+              </div>
+              <div className="history-actions">
+                <select
+                  aria-label="筛选任务状态"
+                  value={historyFilter}
+                  onChange={(event) => setHistoryFilter(event.target.value as TaskStatus | "all")}
+                >
+                  <option value="all">全部</option>
+                  <option value="waiting_human_confirm">等待确认</option>
+                  <option value="completed">已完成</option>
+                  <option value="failed">失败</option>
+                </select>
+                <button className="secondary-button" type="button" onClick={() => void loadTaskHistory()}>
+                  <RefreshCw size={16} />
+                  刷新
+                </button>
+              </div>
             </div>
-          </div>
-          <pre className="report">{currentTask?.report_markdown || "任务完成后，报告会显示在这里。"}</pre>
-        </section>
-      </section>
+            <HistoryList
+              tasks={filteredHistory}
+              activeTaskId={currentTask?.id}
+              onSelectTask={(taskId) => void loadTaskDetail(taskId)}
+            />
+          </section>
+
+          <AnalyticsCharts analysis={currentTask?.analysis || null} />
+
+          <section className="grid">
+            <section className="panel">
+              <PanelTitle marker="3" title="Agent Trace" />
+              <TraceList trace={trace} />
+            </section>
+
+            <section className="panel">
+              <div className="panel-title split-title">
+                <div className="title-left">
+                  <span>4</span>
+                  <h2>报告预览</h2>
+                </div>
+                <div className="download-actions">
+                  <a
+                    className={`secondary-link ${currentTask?.report_markdown ? "" : "disabled"}`}
+                    href="#"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void handleDownload("md");
+                    }}
+                  >
+                    <Download size={16} />
+                    MD
+                  </a>
+                  <a
+                    className={`secondary-link ${currentTask?.report_markdown ? "" : "disabled"}`}
+                    href="#"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void handleDownload("pdf");
+                    }}
+                  >
+                    <Download size={16} />
+                    PDF
+                  </a>
+                </div>
+              </div>
+              <pre className="report">{currentTask?.report_markdown || "任务完成后，报告会显示在这里。"}</pre>
+            </section>
+          </section>
         </>
       )}
     </main>
@@ -583,7 +520,7 @@ function PanelTitle({ marker, title }: { marker: string; title: string }) {
 
 function PlanList({ plan }: { plan: PlanStep[] }) {
   if (!plan.length) {
-    return <div className="empty">任务创建后，Planner Agent 会在这里生成计划。</div>;
+    return <div className="empty">创建任务后，Planner Agent 会在这里生成可确认的执行计划。</div>;
   }
   return (
     <div>
@@ -602,13 +539,13 @@ function PlanList({ plan }: { plan: PlanStep[] }) {
 
 function WorkflowGraph({ graph }: { graph: WorkflowGraphPayload | null }) {
   if (!graph) {
-    return <div className="empty">工作流图读取失败，请确认后端服务已启动。</div>;
+    return <div className="empty">工作流图读取失败，请确认 API 已启动。</div>;
   }
   return (
     <div className="graph-box">
       {Object.entries(graph.graphs).map(([name, nodes]) => (
         <div className="graph-column" key={name}>
-          <h3>{name === "planning" ? "规划图：生成计划并暂停" : "执行图：确认后自动运行"}</h3>
+          <h3>{name === "planning" ? "规划图：生成计划并等待确认" : "执行图：确认后自动运行"}</h3>
           <div className="node-chain">
             {nodes.map((node, index) => (
               <div className="node-segment" key={node}>
@@ -633,7 +570,7 @@ function HistoryList({
   onSelectTask: (taskId: string) => void;
 }) {
   if (!tasks.length) {
-    return <div className="history-list empty">暂无符合条件的历史任务。</div>;
+    return <div className="history-list empty">暂无符合条件的任务。</div>;
   }
   return (
     <div className="history-list">
