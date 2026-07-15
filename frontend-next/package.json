@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test:demo-history": "node scripts/demo-history.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "next lint"
   },

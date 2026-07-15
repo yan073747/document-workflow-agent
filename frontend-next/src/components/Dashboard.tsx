@@ -14,6 +14,14 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AnalyticsCharts, type ChartMetricItem } from "@/components/AnalyticsCharts";
 import { apiGet, apiPost, apiPostForm, apiPostJson, downloadReportFile } from "@/lib/api";
+import {
+  clearDemoHistoryState,
+  getDemoHistorySummaries,
+  getDemoTaskPayload,
+  readDemoHistoryState,
+  upsertDemoTaskPayload,
+  writeDemoHistoryState
+} from "@/lib/demoHistory";
 
 type TaskStatus =
   | "created"
@@ -180,8 +188,8 @@ export function Dashboard() {
 
   async function loadTaskHistory(nextToken = token) {
     if (!nextToken) return;
-    const payload = await apiGet<{ items: TaskSummary[] }>("/api/tasks", { token: nextToken });
-    setHistory(payload.items || []);
+    const state = readDemoHistoryState(window.localStorage);
+    setHistory(getDemoHistorySummaries(state) as TaskSummary[]);
   }
 
   async function loadTaskDetail(taskId: string) {
@@ -189,11 +197,23 @@ export function Dashboard() {
     setBusyText("正在加载任务详情...");
     setErrorText("");
     try {
+      const savedPayload = getDemoTaskPayload(readDemoHistoryState(window.localStorage), taskId);
+      if (savedPayload) {
+        renderPayload(savedPayload as TaskPayload);
+        return;
+      }
       const payload = await apiGet<TaskPayload>(`/api/tasks/${taskId}`, { token });
+      persistPayload(payload);
       renderPayload(payload);
     } catch (error) {
       showError(error, "任务详情加载失败");
     }
+  }
+
+  function persistPayload(payload: TaskPayload) {
+    const nextState = upsertDemoTaskPayload(readDemoHistoryState(window.localStorage), payload);
+    writeDemoHistoryState(window.localStorage, nextState);
+    setHistory(getDemoHistorySummaries(nextState) as TaskSummary[]);
   }
 
   function renderPayload(payload: TaskPayload) {
@@ -218,8 +238,8 @@ export function Dashboard() {
     setErrorText("");
     try {
       const payload = await apiPostForm<TaskPayload>("/api/tasks", form, { token });
+      persistPayload(payload);
       renderPayload(payload);
-      await loadTaskHistory();
     } catch (error) {
       showError(error, "任务创建失败");
     }
@@ -231,8 +251,8 @@ export function Dashboard() {
     setErrorText("");
     try {
       const payload = await apiPost<TaskPayload>(`/api/tasks/${currentTask.id}/confirm`, { token });
+      persistPayload(payload);
       renderPayload(payload);
-      await loadTaskHistory();
     } catch (error) {
       showError(error, "执行失败");
     }
@@ -269,6 +289,14 @@ export function Dashboard() {
     setCurrentTask(null);
     setTrace([]);
     setHistory([]);
+    setBusyText("等待创建任务");
+  }
+
+  function handleClearDemoHistory() {
+    clearDemoHistoryState(window.localStorage);
+    setHistory([]);
+    setCurrentTask(null);
+    setTrace([]);
     setBusyText("等待创建任务");
   }
 
@@ -439,6 +467,9 @@ export function Dashboard() {
                 <button className="secondary-button" type="button" onClick={() => void loadTaskHistory()}>
                   <RefreshCw size={16} />
                   刷新
+                </button>
+                <button className="secondary-button" type="button" onClick={handleClearDemoHistory}>
+                  清空
                 </button>
               </div>
             </div>
