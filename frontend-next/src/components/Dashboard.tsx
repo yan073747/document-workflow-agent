@@ -329,6 +329,7 @@ export function Dashboard() {
   return (
     <main className="shell">
       <nav className="topbar">
+        <a className="back-link" href="https://www.aiworkbox.cn/demos/document-workflow">← 返回作品集</a>
         <div className="brand">
           <span className="brand-mark">DW</span>
           <div>
