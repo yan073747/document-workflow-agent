@@ -351,6 +351,7 @@ export function Dashboard() {
           <h1>文档工作流 Agent 控制台</h1>
           <p className="subtitle">
             上传销售表格，系统模拟 Planner、Data Analyst、Writer、Reviewer 协作完成计划生成、人工确认、数据分析和报告输出。
+            公开演示使用 deterministic fixture 和安全样例数据；工程版可接入真实文件存储、任务队列、模型 Provider 和权限系统。
           </p>
         </div>
         <div className="status-card">
