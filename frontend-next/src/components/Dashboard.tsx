@@ -152,10 +152,14 @@ export function Dashboard() {
   const [errorText, setErrorText] = useState("");
   const [loginEmail, setLoginEmail] = useState("demo@example.com");
   const [loginPassword, setLoginPassword] = useState("demo123456");
+  const [isEnteringDemo, setIsEnteringDemo] = useState(false);
 
   useEffect(() => {
     const storedToken = window.localStorage.getItem("workflow_token");
-    if (!storedToken) return;
+    if (!storedToken) {
+      void loginDemoAccount();
+      return;
+    }
     setToken(storedToken);
     void apiGet<AuthUser>("/api/auth/me", { token: storedToken })
       .then((nextUser) => {
@@ -164,8 +168,7 @@ export function Dashboard() {
       })
       .catch(() => {
         window.localStorage.removeItem("workflow_token");
-        setToken(null);
-        setUser(null);
+        enterLocalDemoSession();
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -263,10 +266,22 @@ export function Dashboard() {
     setErrorText(error instanceof Error ? error.message : fallback);
   }
 
-  async function handleLogin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function enterLocalDemoSession() {
+    const demoUser = { id: "public-demo", email: loginEmail };
+    window.localStorage.setItem("workflow_token", "public-demo-token");
+    setToken("public-demo-token");
+    setUser(demoUser);
+    setProvider(null);
+    void loadWorkflowGraph();
+    void loadTaskHistory("public-demo-token");
+    setBusyText("等待创建任务");
     setErrorText("");
-    setBusyText("正在登录演示账号...");
+  }
+
+  async function loginDemoAccount() {
+    setIsEnteringDemo(true);
+    setErrorText("");
+    setBusyText("正在进入公开演示...");
     try {
       const payload = await apiPostJson<AuthTokenResponse>("/api/auth/login", {
         email: loginEmail,
@@ -278,8 +293,15 @@ export function Dashboard() {
       await Promise.all([loadWorkflowGraph(), loadProviderStatus(), loadTaskHistory(payload.access_token)]);
       setBusyText("等待创建任务");
     } catch (error) {
-      showError(error, "登录失败");
+      enterLocalDemoSession();
+    } finally {
+      setIsEnteringDemo(false);
     }
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await loginDemoAccount();
   }
 
   function handleLogout() {
@@ -324,7 +346,7 @@ export function Dashboard() {
 
   const providerMode = provider
     ? `${provider.enabled ? "规则引擎演示模式" : "本地演示模式"} · ${provider.provider} / ${provider.model}`
-    : "模型状态读取失败";
+    : "公开演示模式 · fixture / deterministic provider";
 
   return (
     <main className="shell">
@@ -371,8 +393,11 @@ export function Dashboard() {
           <form className="panel login-panel" onSubmit={handleLogin}>
             <div className="panel-title">
               <span>L</span>
-              <h2>登录演示账号</h2>
+              <h2>{isEnteringDemo ? "正在进入公开演示" : "公开演示入口"}</h2>
             </div>
+            <p className="hint intro-hint">
+              线上作品集默认使用演示账号进入控制台，便于直接查看任务创建、人工确认、Trace 和报告输出流程。
+            </p>
             <label>
               邮箱
               <input value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} />
@@ -385,9 +410,9 @@ export function Dashboard() {
                 onChange={(event) => setLoginPassword(event.target.value)}
               />
             </label>
-            <button type="submit">
-              <ShieldCheck size={18} />
-              进入控制台
+            <button type="submit" disabled={isEnteringDemo}>
+              {isEnteringDemo ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}
+              {isEnteringDemo ? "正在进入..." : "进入公开演示控制台"}
             </button>
             <p className="hint">默认账号：demo@example.com / demo123456</p>
           </form>

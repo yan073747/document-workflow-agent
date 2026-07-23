@@ -471,6 +471,11 @@ button:disabled,
   font-size: 13px;
 }
 
+.intro-hint {
+  margin: -2px 0 16px;
+  line-height: 1.65;
+}
+
 .retry-box {
   margin-top: 14px;
   border: 1px solid #ffd4cc;
@@ -702,11 +707,59 @@ button:disabled,
     display: grid;
   }
 
-  .topbar,
   .hero,
   .session-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+    padding: 10px 12px;
+  }
+
+  .back-link {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .brand > div {
+    min-width: 0;
+  }
+
+  .brand small {
+    display: none;
+  }
+
+  .brand strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar-meta {
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .topbar-meta span {
+    flex: 0 0 auto;
+    padding: 5px 8px;
+    font-size: 11px;
   }
 
   h1 {
